@@ -8,9 +8,9 @@ provider "aws" {
   region = var.aws_region
 }
 
-######################
-# Input variables
-######################
+#############################
+# Variables
+#############################
 
 variable "project_name" {
   type = string
@@ -25,12 +25,13 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-########################
-# S3 Static Website
-########################
+#############################
+# S3 STATIC FRONTEND BUCKET
+#############################
 
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.project_name}-frontend-${var.environment}"
+  bucket        = "${var.project_name}-frontend-${var.environment}"
+  force_destroy = true   # <-- FIX: prevents GitHub Actions from failing
 
   tags = {
     Project     = var.project_name
@@ -53,30 +54,33 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
-  block_public_acls   = false
-  block_public_policy = false
-  ignore_public_acls  = false
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
   restrict_public_buckets = false
 }
 
+# Correct public policy so React frontend loads
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
         Principal = "*"
-        Action = "s3:GetObject"
-        Resource = "${aws_s3_bucket.frontend.arn}/*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.frontend.arn}/*"
       }
     ]
   })
 }
 
-########################
-# Lambda Function
-########################
+################################
+# LAMBDA + IAM
+################################
 
 resource "aws_iam_role" "lambda_role" {
   name = "${var.project_name}-lambda-role-${var.environment}"
@@ -110,9 +114,9 @@ resource "aws_lambda_function" "api" {
   timeout = 30
 }
 
-########################
-# API Gateway
-########################
+################################
+# API GATEWAY
+################################
 
 resource "aws_apigatewayv2_api" "http" {
   name          = "${var.project_name}-api-${var.environment}"
@@ -140,9 +144,9 @@ resource "aws_lambda_permission" "api_gateway" {
   source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*"
 }
 
-########################
+#############################
 # Outputs
-########################
+#############################
 
 output "api_gateway_url" {
   value = aws_apigatewayv2_api.http.api_endpoint
