@@ -1,6 +1,5 @@
 terraform {
   required_version = ">= 1.5.0"
-
   backend "s3" {}
 }
 
@@ -9,20 +8,23 @@ provider "aws" {
 }
 
 #############################
-# Variables
+# VARIABLES (ONLY the ones you use)
 #############################
 
 variable "project_name" {
-  type = string
+  description = "Project name prefix"
+  type        = string
 }
 
 variable "environment" {
-  type = string
+  description = "Environment: dev | test | prod"
+  type        = string
 }
 
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
+  description = "AWS region to deploy resources"
+  type        = string
+  default     = "us-east-1"
 }
 
 #############################
@@ -31,7 +33,7 @@ variable "aws_region" {
 
 resource "aws_s3_bucket" "frontend" {
   bucket        = "${var.project_name}-frontend-${var.environment}"
-  force_destroy = true   # <-- FIX: prevents GitHub Actions from failing
+  force_destroy = true
 
   tags = {
     Project     = var.project_name
@@ -60,7 +62,6 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   restrict_public_buckets = false
 }
 
-# Correct public policy so React frontend loads
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -78,9 +79,9 @@ resource "aws_s3_bucket_policy" "frontend" {
   })
 }
 
-################################
+#############################
 # LAMBDA + IAM
-################################
+#############################
 
 resource "aws_iam_role" "lambda_role" {
   name = "${var.project_name}-lambda-role-${var.environment}"
@@ -114,9 +115,9 @@ resource "aws_lambda_function" "api" {
   timeout = 30
 }
 
-################################
+#############################
 # API GATEWAY
-################################
+#############################
 
 resource "aws_apigatewayv2_api" "http" {
   name          = "${var.project_name}-api-${var.environment}"
@@ -145,7 +146,7 @@ resource "aws_lambda_permission" "api_gateway" {
 }
 
 #############################
-# Outputs
+# OUTPUTS
 #############################
 
 output "api_gateway_url" {
