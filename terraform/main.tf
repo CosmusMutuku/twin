@@ -1,115 +1,171 @@
-#############################################
-# AWS Provider
-#############################################
+# Data source to get current AWS account ID
+data "aws_caller_identity" "current" {}
 
-provider "aws" {
-  region = var.region != "" ? var.region : "us-east-1"
+locals {
+  name_prefix = "${var.project_name}-${var.environment}"
+
+  common_tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
 }
 
-provider "aws" {
-  alias  = "eu_west_1"
-  region = "eu-west-1"
-}
-
-#############################################
-# S3 Buckets (frontend + memory)
-#############################################
-
-resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.project_name}-${var.environment}-frontend"
-}
-
+# -----------------------
+# S3: Memory bucket
+# -----------------------
 resource "aws_s3_bucket" "memory" {
-  bucket = "${var.project_name}-${var.environment}-memory"
+  bucket = "${local.name_prefix}-memory-${data.aws_caller_identity.current.account_id}"
+  tags   = local.common_tags
 }
 
-#############################################
-# IAM Role for Lambda
-#############################################
+resource "aws_s3_bucket_public_access_block" "memory" {
+  bucket = aws_s3_bucket.memory.id
 
-resource "aws_iam_role" "lambda_exec" {
-  name = "${var.project_name}-${var.environment}-lambda-role"
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_ownership_controls" "memory" {
+  bucket = aws_s3_bucket.memory.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+# -----------------------
+# S3: Frontend static website
+# -----------------------
+resource "aws_s3_bucket" "frontend" {
+  bucket = "${local.name_prefix}-frontend-${data.aws_caller_identity.current.account_id}"
+  tags   = local.common_tags
+
+  website {
+    index_document = "index.html"
+    error_document = "404.html"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  # Allow public website hosting. If your org blocks public policies, this will fail:
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# Public read policy so the website files are accessible
+resource "aws_s3_bucket_policy" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.frontend.arn}/*"
+      },
+    ]
+  })
+
+  depends_on = [aws_s3_bucket_public_access_block.frontend]
+}
+
+# -----------------------
+# IAM role for Lambda
+# -----------------------
+resource "aws_iam_role" "lambda_role" {
+  name = "${local.name_prefix}-lambda-role"
+  tags = local.common_tags
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Action = "sts:AssumeRole"
         Effect = "Allow"
-        Principal = { Service = "lambda.amazonaws.com" }
-        Action    = "sts:AssumeRole"
-      }
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
     ]
   })
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_basic" {
-  role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  role       = aws_iam_role.lambda_role.name
 }
 
-#############################################
-# Lambda Function
-#############################################
+# NOTE: verify these managed policy ARNs exist in your account.
+# If Bedrock policy name differs in your account, replace with a custom inline policy.
+resource "aws_iam_role_policy_attachment" "lambda_bedrock" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonBedrockFullAccess"
+  role       = aws_iam_role.lambda_role.name
+}
 
+resource "aws_iam_role_policy_attachment" "lambda_s3" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  role       = aws_iam_role.lambda_role.name
+}
+
+# -----------------------
+# Lambda function
+# -----------------------
 resource "aws_lambda_function" "api" {
-  function_name = "${var.project_name}-${var.environment}-api"
-  role          = aws_iam_role.lambda_exec.arn
-  handler       = "lambda_handler.handler"
-  runtime       = "python3.12"
-
-  filename         = "lambda-deployment.zip"
-  source_code_hash = filebase64sha256("lambda-deployment.zip")
-
-  timeout = var.lambda_timeout
+  filename         = "${path.module}/../backend/lambda-deployment.zip"
+  function_name    = "${local.name_prefix}-api"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "lambda_handler.handler"
+  source_code_hash = filebase64sha256("${path.module}/../backend/lambda-deployment.zip")
+  runtime          = "python3.12"
+  architectures    = ["x86_64"]
+  timeout          = var.lambda_timeout
+  tags             = local.common_tags
 
   environment {
     variables = {
-      PROJECT_NAME  = var.project_name
-      ENVIRONMENT   = var.environment
-      BEDROCK_MODEL = var.bedrock_model_id
-      MEMORY_BUCKET = aws_s3_bucket.memory.bucket
-
-      # CORS ORIGINS FIXED (Terraform-safe)
-      CORS_ORIGINS = var.use_custom_domain && var.root_domain != "" ?
-        "https://${var.root_domain},https://www.${var.root_domain}" :
-        "*"
+      # If using a custom domain, set CORS to that domain; otherwise use the S3 website endpoint.
+      # NOTE: This entire expression must remain a single HCL expression (ternary with both branches).
+      CORS_ORIGINS     = var.use_custom_domain && var.root_domain != "" ? "https://${var.root_domain},https://www.${var.root_domain}" : "http://${aws_s3_bucket.frontend.website_endpoint}"
+      S3_BUCKET        = aws_s3_bucket.memory.id
+      USE_S3           = "true"
+      BEDROCK_MODEL_ID = var.bedrock_model_id
     }
   }
 }
 
-#############################################
-# API Gateway (HTTP API v2)
-#############################################
-
+# -----------------------
+# API Gateway (HTTP API)
+# -----------------------
 resource "aws_apigatewayv2_api" "main" {
-  name          = "${var.project_name}-${var.environment}-api"
+  name          = "${local.name_prefix}-api-gateway"
   protocol_type = "HTTP"
-}
+  tags          = local.common_tags
 
-resource "aws_apigatewayv2_integration" "lambda" {
-  api_id             = aws_apigatewayv2_api.main.id
-  integration_type   = "AWS_PROXY"
-  integration_uri    = aws_lambda_function.api.invoke_arn
-  integration_method = "POST"
-}
-
-resource "aws_apigatewayv2_route" "proxy" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "$default"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
-}
-
-resource "aws_lambda_permission" "apigw" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.api.arn
-  principal     = "apigateway.amazonaws.com"
+  cors_configuration {
+    allow_credentials = false
+    allow_headers     = ["*"]
+    allow_methods     = ["GET", "POST", "OPTIONS"]
+    # permissive by default; tighten for production if desired
+    allow_origins     = ["*"]
+    max_age           = 300
+  }
 }
 
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.main.id
   name        = "$default"
   auto_deploy = true
+  tags        = local.common_tags
 
   default_route_settings {
     throttling_burst_limit = var.api_throttle_burst_limit
@@ -117,69 +173,36 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
-#############################################
-# CloudFront (optionally with custom domain)
-#############################################
-
-resource "aws_cloudfront_origin_access_control" "s3_oac" {
-  name                              = "${var.project_name}-${var.environment}-oac"
-  origin_access_control_origin_type = "s3"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
+resource "aws_apigatewayv2_integration" "lambda" {
+  api_id           = aws_apigatewayv2_api.main.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.api.invoke_arn
 }
 
-resource "aws_cloudfront_distribution" "main" {
-  enabled = true
-
-  origin {
-    domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
-    origin_id   = "frontend-s3"
-
-    origin_access_control_id = aws_cloudfront_origin_access_control.s3_oac.id
-  }
-
-  default_cache_behavior {
-    target_origin_id       = "frontend-s3"
-    viewer_protocol_policy = "redirect-to-https"
-
-    allowed_methods = ["GET", "HEAD"]
-    cached_methods  = ["GET", "HEAD"]
-
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
-  }
-
-  price_class = "PriceClass_100"
-
-  viewer_certificate {
-    cloudfront_default_certificate = var.use_custom_domain ? false : true
-    acm_certificate_arn            = var.use_custom_domain ? aws_acm_certificate.main[0].arn : null
-    minimum_protocol_version       = "TLSv1.2_2021"
-  }
-
-  aliases = var.use_custom_domain && var.root_domain != "" ?
-    [var.root_domain, "www.${var.root_domain}"] :
-    []
+# API Gateway Routes
+resource "aws_apigatewayv2_route" "get_root" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-#############################################
-# ACM Certificate (only when custom domain)
-#############################################
-
-resource "aws_acm_certificate" "main" {
-  count = var.use_custom_domain && var.root_domain != "" ? 1 : 0
-
-  domain_name       = var.root_domain
-  validation_method = "DNS"
-
-  subject_alternative_names = [
-    "www.${var.root_domain}"
-  ]
-
-  provider = aws.eu_west_1
+resource "aws_apigatewayv2_route" "post_chat" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /chat"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_route" "get_health" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /health"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+# Lambda permission for API Gateway
+resource "aws_lambda_permission" "api_gw" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}

@@ -10,10 +10,6 @@ terraform {
 }
 
 provider "aws" {
-  # Uses AWS CLI configuration (aws configure)
-}
-
-provider "aws" {
-  alias  = "eu_west_1"
-  region = "eu-west-1"
+  region = var.aws_region
+  # Uses AWS CLI / IAM role / environment variables for credentials in CI
 }
