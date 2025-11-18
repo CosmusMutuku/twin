@@ -3,9 +3,9 @@ output "api_gateway_url" {
   value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
-output "cloudfront_url" {
-  description = "URL of the CloudFront distribution"
-  value       = "https://${aws_cloudfront_distribution.main.domain_name}"
+output "frontend_url" {
+  description = "S3 website endpoint for the frontend (HTTP)"
+  value       = aws_s3_bucket.frontend.website_endpoint
 }
 
 output "s3_frontend_bucket" {
@@ -24,6 +24,6 @@ output "lambda_function_name" {
 }
 
 output "custom_domain_url" {
-  description = "Root URL of the production site"
-  value       = var.use_custom_domain ? "https://${var.root_domain}" : ""
+  description = "Root URL of the production site (empty because we are not configuring custom domain here)"
+  value       = ""
 }

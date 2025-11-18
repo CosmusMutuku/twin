@@ -44,7 +44,7 @@ terraform workspace select "$ENVIRONMENT"
 
 echo "📦 Emptying S3 buckets..."
 
-# Get bucket names with account ID (matching Day 4 naming)
+# Get bucket names with account ID
 FRONTEND_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-frontend-${AWS_ACCOUNT_ID}"
 MEMORY_BUCKET="${PROJECT_NAME}-${ENVIRONMENT}-memory-${AWS_ACCOUNT_ID}"
 

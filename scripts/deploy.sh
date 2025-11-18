@@ -13,7 +13,6 @@ echo "📦 Building Lambda package..."
 
 # 2. Terraform workspace & apply
 cd terraform
-# New lines:
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 AWS_REGION=${DEFAULT_AWS_REGION:-us-east-1}
 terraform init -input=false \
@@ -41,7 +40,7 @@ echo "🎯 Applying Terraform..."
 
 API_URL=$(terraform output -raw api_gateway_url)
 FRONTEND_BUCKET=$(terraform output -raw s3_frontend_bucket)
-CUSTOM_URL=$(terraform output -raw custom_domain_url 2>/dev/null || true)
+FRONTEND_URL=$(terraform output -raw frontend_url)
 
 # 3. Build + deploy frontend
 cd ../frontend
@@ -52,13 +51,14 @@ echo "NEXT_PUBLIC_API_URL=$API_URL" > .env.production
 
 npm install
 npm run build
+
+# Sync the static site to S3 (assumes static output in ./out)
 aws s3 sync ./out "s3://$FRONTEND_BUCKET/" --delete
+
 cd ..
 
 # 4. Final messages
 echo -e "\n✅ Deployment complete!"
-echo "🌐 CloudFront URL : $(terraform -chdir=terraform output -raw cloudfront_url)"
-if [ -n "$CUSTOM_URL" ]; then
-  echo "🔗 Custom domain  : $CUSTOM_URL"
-fi
-echo "📡 API Gateway    : $API_URL"
+echo "🌐 Frontend (S3 website): $FRONTEND_URL"
+echo "📡 API Gateway         : $API_URL"
+echo "🪣 Frontend Bucket     : $FRONTEND_BUCKET"
