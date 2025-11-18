@@ -58,7 +58,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      # --- NEW: Build the frontend ---
+      # --- Build Frontend ---
       - name: Install frontend dependencies
         run: npm ci
         working-directory: ./frontend
@@ -67,36 +67,39 @@ jobs:
         run: npm run build
         working-directory: ./frontend
 
-      # --- NEW: Sync frontend build to S3 ---
-      - name: Upload frontend to S3
-        run: |
-          aws s3 sync ./frontend/dist \
-            s3://$(terraform -chdir=terraform output -raw s3_frontend_bucket)/ \
-            --delete
-        env:
-          AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+      # --- Initialize Terraform ---
+      - name: Initialize Terraform
+        working-directory: ./terraform
+        run: terraform init
 
+      # --- Deploy backend (Lambda, API Gateway, S3 buckets) ---
       - name: Run Deployment Script
         run: |
-          # Set environment variables for the script
-          export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
-          export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-          
-          # Make script executable and run it
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-          
+
+      # --- Upload frontend to S3 ---
+      - name: Upload frontend to S3
+        run: |
+          FRONTEND_BUILD_DIR=./frontend/dist  # change to ./frontend/build if using CRA
+          BUCKET_NAME=$(terraform -chdir=terraform output -raw s3_frontend_bucket)
+          aws s3 sync $FRONTEND_BUILD_DIR s3://$BUCKET_NAME/ --delete
+        env:
+          AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
+
+      # --- Get deployment URLs ---
       - name: Get Deployment URLs
         id: deploy_outputs
         working-directory: ./terraform
         run: |
           terraform workspace select ${{ github.event.inputs.environment || 'dev' }}
-          echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
           echo "api_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
           echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket)" >> $GITHUB_OUTPUT
+          echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
 
+      # --- Deployment Summary ---
       - name: Deployment Summary
         run: |
           echo "✅ Deployment Complete!"
