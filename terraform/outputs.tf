@@ -3,8 +3,13 @@ output "api_gateway_url" {
   value       = aws_apigatewayv2_api.main.api_endpoint
 }
 
+output "cloudfront_url" {
+  description = "URL of the CloudFront distribution"
+  value       = "https://${aws_cloudfront_distribution.main.domain_name}"
+}
+
 output "s3_frontend_bucket" {
-  description = "Name of the S3 bucket for frontend hosting"
+  description = "Name of the S3 bucket for frontend"
   value       = aws_s3_bucket.frontend.id
 }
 
@@ -16,11 +21,6 @@ output "s3_memory_bucket" {
 output "lambda_function_name" {
   description = "Name of the Lambda function"
   value       = aws_lambda_function.api.function_name
-}
-
-output "s3_frontend_url" {
-  description = "Public website URL for the S3-hosted frontend"
-  value       = aws_s3_bucket_website_configuration.frontend.website_endpoint
 }
 
 output "custom_domain_url" {
