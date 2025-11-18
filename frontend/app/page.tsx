@@ -1,3 +1,5 @@
+export const dynamic = 'force-static';
+
 import Twin from '@/components/twin';
 
 export default function Home() {

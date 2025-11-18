@@ -65,7 +65,9 @@ echo "🏗️ Building Next.js static site..."
 npm run build
 
 echo "🪣 Uploading static site to S3 bucket: $FRONTEND_BUCKET"
-aws s3 sync ./out "s3://$FRONTEND_BUCKET/" --delete
+#aws s3 sync ./out "s3://$FRONTEND_BUCKET/" --delete
+aws s3 sync ./out/ "s3://$FRONTEND_BUCKET/" --delete
+
 
 ########################################
 # 4. Final messages
