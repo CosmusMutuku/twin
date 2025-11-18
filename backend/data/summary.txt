@@ -1,0 +1,7 @@
+Senior Business Analyst | Data Scientist | AI & Fraud Strategy Professional
+
+I am an analytical, innovation-driven professional with over 6 years’ experience bridging business strategy, technology, and analytics across telecom, fintech, and enterprise IT ecosystems in the UK, Europe, and Africa. I specialize in designing insight-driven, customer-centric, and fraud-resilient solutions using data analytics, automation, and AI, translating complex requirements into actionable insights and scalable systems that improve decision-making, operational performance, and customer trust.
+
+My expertise spans business analysis, predictive modeling, anomaly detection, fraud risk management, and AI/ML integration. I am proficient in Python, SQL, Power BI, and data modeling frameworks such as Isolation Forest, LOF, SHAP, and LIME. I have led digital transformation and fraud control initiatives, built advanced dashboards and pipelines for real-time monitoring, and collaborated with engineering and data science teams to integrate AI/ML models into operational workflows.
+
+I am adept at working in Agile environments, facilitating stakeholder engagement, and aligning technology solutions with business objectives and regulatory compliance. My goal is to leverage data, analytics, and AI to deliver measurable business value, mitigate risks, and foster trust with customers and stakeholders.
