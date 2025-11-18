@@ -20,7 +20,7 @@ echo "📦 Building Lambda package..."
 cd terraform
 
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-AWS_REGION=${DEFAULT_AWS_REGION:-us-east-1}
+AWS_REGION=${DEFAULT_AWS_REGION:-eu-west-1}
 
 terraform init -input=false \
   -backend-config="bucket=twin-terraform-state-${AWS_ACCOUNT_ID}" \
@@ -49,7 +49,6 @@ echo "🎯 Applying Terraform..."
 # pull outputs
 API_URL=$(terraform output -raw api_gateway_url)
 FRONTEND_BUCKET=$(terraform output -raw s3_frontend_bucket)
-FRONTEND_URL=$(terraform output -raw frontend_url)
 
 ########################################
 # 3. Build + deploy frontend (S3 static website)
@@ -74,6 +73,5 @@ aws s3 sync ./out "s3://$FRONTEND_BUCKET/" --delete
 cd ..
 
 echo -e "\n✅ Deployment complete!"
-echo "🌐 Frontend (S3 website): $FRONTEND_URL"
 echo "📡 API Gateway URL      : $API_URL"
 echo "🪣 Frontend Bucket      : $FRONTEND_BUCKET"

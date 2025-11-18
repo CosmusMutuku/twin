@@ -49,7 +49,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_wrapper: false
+          terraform_wrapper: false  # Important: disable wrapper to get raw outputs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -60,15 +60,17 @@ jobs:
 
       - name: Run Deployment Script
         run: |
+          # Set environment variables for the script
           export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
           export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-
+          
+          # Make script executable and run it
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
         env:
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-
-      - name: Get Deployment Outputs
+          
+      - name: Get Deployment URLs
         id: deploy_outputs
         working-directory: ./terraform
         run: |
@@ -77,11 +79,9 @@ jobs:
           echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket)" >> $GITHUB_OUTPUT
           echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT
 
-      # ⛔️ CloudFront step removed completely
-
       - name: Deployment Summary
         run: |
           echo "✅ Deployment Complete!"
           echo "📡 API Gateway: ${{ steps.deploy_outputs.outputs.api_url }}"
           echo "🪣 Frontend Bucket: ${{ steps.deploy_outputs.outputs.frontend_bucket }}"
-          echo "🌐 Static Site URL: ${{ steps.deploy_outputs.outputs.frontend_url }}"
+          echo "🌐 Frontend URL (S3 website): ${{ steps.deploy_outputs.outputs.frontend_url }}"
