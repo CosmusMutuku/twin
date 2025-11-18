@@ -1,60 +1,41 @@
-provider "aws" {
-  region = var.region
-}
-
 terraform {
-  backend "s3" {
-    bucket         = "twin-terraform-state-dev"
-    key            = "lambda-functions/terraform.tfstate"
-    region         = "eu-west-1"
-    dynamodb_table = "twin-terraform-state-lock"
-  }
+  required_version = ">= 1.5.0"
+
+  backend "s3" {}
 }
 
-data "aws_caller_identity" "current" {}
-
-# --- Variables -------------------------------------------------------------
-
-variable "lambda_roles" {
-  description = "IAM roles for Lambda functions"
-  type = map(object({
-    name                     = string
-    policy_arns              = list(string)
-    policies                 = list(string)
-    external_policy_contents = list(string)
-  }))
+provider "aws" {
+  region = var.aws_region
 }
 
-variable "bucket_names" {
-  description = "S3 bucket names"
-  type        = map(string)
+######################
+# Input variables
+######################
+
+variable "project_name" {
+  type = string
 }
 
-variable "region" {
-  description = "AWS region"
-  type        = string
-  default     = "eu-west-1"
+variable "environment" {
+  type = string
 }
 
-variable "corp_api_url" {
-  description = "Corporate API URL"
-  type        = string
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
 }
 
-variable "product_name" {
-  description = "Product name"
-  type        = string
-}
-
-variable "consumer" {
-  description = "Customer name"
-  type        = string
-}
-
-# --- S3 Buckets -------------------------------------------------------------
+########################
+# S3 Static Website
+########################
 
 resource "aws_s3_bucket" "frontend" {
-  bucket = var.bucket_names["frontend"]
+  bucket = "${var.project_name}-frontend-${var.environment}"
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
 }
 
 resource "aws_s3_bucket_website_configuration" "frontend" {
@@ -65,156 +46,112 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
   }
 
   error_document {
-    key = "404.html"
+    key = "index.html"
   }
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
+
+  block_public_acls   = false
+  block_public_policy = false
+  ignore_public_acls  = false
+  restrict_public_buckets = false
 }
 
 resource "aws_s3_bucket_policy" "frontend" {
   bucket = aws_s3_bucket.frontend.id
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowPublicRead",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": [
-        "s3:GetObject",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${var.bucket_names["frontend"]}",
-        "arn:aws:s3:::${var.bucket_names["frontend"]}/*"
-      ]
-    }
-  ]
-}
-EOF
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = "*"
+        Action = "s3:GetObject"
+        Resource = "${aws_s3_bucket.frontend.arn}/*"
+      }
+    ]
+  })
 }
 
-# --- Lambda Roles -------------------------------------------------------------
+########################
+# Lambda Function
+########################
 
 resource "aws_iam_role" "lambda_role" {
-  for_each = var.lambda_roles
+  name = "${var.project_name}-lambda-role-${var.environment}"
 
-  name = each.value.name
-
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "lambda.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-
-  inline_policy {
-    name   = "${each.value.name}-inline"
-    policy = jsonencode({
-      Version = "2012-10-17"
-      Statement = [
-        {
-          Effect   = "Allow"
-          Action   = ["s3:GetObject", "s3:ListBucket"]
-          Resource = ["arn:aws:s3:::twin-dev-data", "arn:aws:s3:::twin-dev-data/*"]
-        }
-      ]
-    })
-  }
-
-  managed_policy_arns = each.value.policy_arns
-
-  dynamic "inline_policy" {
-    for_each = each.value.policies
-    content {
-      name   = "${each.value.name}-${inline_policy.key}"
-      policy = inline_policy.value
-    }
-  }
-
-  dynamic "inline_policy" {
-    for_each = each.value.external_policy_contents
-    content {
-      name   = "${each.value.name}-custom-${inline_policy.key}"
-      policy = each.value.external_policy_contents[inline_policy.key]
-    }
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = { Service = "lambda.amazonaws.com" }
+        Action    = "sts:AssumeRole"
+      }
+    ]
+  })
 }
 
-# --- Lambda Functions ---------------------------------------------------------
-
-resource "archive_file" "iam_lambda_package" {
-  type        = "zip"
-  source_file = "${path.module}/../scripts/iam-lambda.py"
-  output_path = "${path.module}/iam-lambda.zip"
+resource "aws_iam_role_policy_attachment" "lambda_basic" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "archive_file" "backend_lambda_package" {
-  type        = "zip"
-  source_file = "${path.module}/../scripts/backend-lambda.py"
-  output_path = "${path.module}/backend-lambda.zip"
+resource "aws_lambda_function" "api" {
+  function_name = "${var.project_name}-api-${var.environment}"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "main.handler"
+  runtime       = "python3.12"
+
+  filename         = "${path.module}/../backend/lambda-deployment.zip"
+  source_code_hash = filebase64sha256("${path.module}/../backend/lambda-deployment.zip")
+
+  timeout = 30
 }
 
-resource "aws_lambda_function" "iam_lambda" {
-  filename      = archive_file.iam_lambda_package.output_path
-  function_name = "twin-dev-iam-lambda"
-  role          = aws_iam_role.lambda_role["iam-lambda"].arn
-  handler       = "iam-lambda.handler"
-  runtime       = "python3.9"
+########################
+# API Gateway
+########################
 
-  environment {
-    variables = {
-      REGION           = var.region
-      CORP_API_URL     = var.corp_api_url
-      PRODUCT_NAME     = var.product_name
-      AWS_ACCOUNT_ID   = data.aws_caller_identity.current.account_id
-    }
-  }
+resource "aws_apigatewayv2_api" "http" {
+  name          = "${var.project_name}-api-${var.environment}"
+  protocol_type = "HTTP"
 }
 
-resource "aws_lambda_function" "backend_lambda" {
-  filename      = archive_file.backend_lambda_package.output_path
-  function_name = "twin-dev-backend-lambda"
-  role          = aws_iam_role.lambda_role["backend-lambda"].arn
-  handler       = "backend-lambda.handler"
-  runtime       = "python3.9"
-
-  environment {
-    variables = {
-      REGION           = var.region
-      CONSUMER         = var.consumer
-      PRODUCT_NAME     = var.product_name
-      CORPORATE_API    = var.corp_api_url
-      CORS_ORIGINS     = "http://${aws_s3_bucket_website_configuration.frontend.website_endpoint}"
-    }
-  }
+resource "aws_apigatewayv2_integration" "lambda" {
+  api_id                 = aws_apigatewayv2_api.http.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.api.invoke_arn
+  payload_format_version = "2.0"
 }
 
-# --- Outputs ------------------------------------------------------------------
+resource "aws_apigatewayv2_route" "root" {
+  api_id    = aws_apigatewayv2_api.http.id
+  route_key = "ANY /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
 
-output "frontend_bucket" {
-  value = var.bucket_names["frontend"]
+resource "aws_lambda_permission" "api_gateway" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*"
+}
+
+########################
+# Outputs
+########################
+
+output "api_gateway_url" {
+  value = aws_apigatewayv2_api.http.api_endpoint
+}
+
+output "s3_frontend_bucket" {
+  value = aws_s3_bucket.frontend.id
 }
 
 output "frontend_url" {
-  value = aws_s3_bucket_website_configuration.frontend.website_endpoint
-}
-
-output "iam_lambda_arn" {
-  value = aws_lambda_function.iam_lambda.arn
-}
-
-output "backend_lambda_arn" {
-  value = aws_lambda_function.backend_lambda.arn
+  value = "http://${aws_s3_bucket.frontend.bucket}.s3-website-${var.aws_region}.amazonaws.com"
 }
