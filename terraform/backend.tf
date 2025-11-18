@@ -1,6 +1,7 @@
 terraform {
   backend "s3" {
-    # These values will be set by deployment scripts
-    # For local development, they can be passed via -backend-config
+    bucket = ""  # will be set via -backend-config
+    key    = ""  # will be set via -backend-config
+    region = ""  # will be set via -backend-config
   }
 }
