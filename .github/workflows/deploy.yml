@@ -67,10 +67,15 @@ jobs:
         run: npm run build
         working-directory: ./frontend
 
-      # --- Initialize Terraform ---
+      # --- Initialize Terraform with S3 backend ---
       - name: Initialize Terraform
         working-directory: ./terraform
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="key=twin-${{ github.event.inputs.environment || 'dev' }}/terraform.tfstate" \
+            -backend-config="region=${{ secrets.DEFAULT_AWS_REGION }}" \
+            -reconfigure
 
       # --- Deploy backend (Lambda, API Gateway, S3 buckets) ---
       - name: Run Deployment Script
