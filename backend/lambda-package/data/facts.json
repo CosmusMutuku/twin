@@ -1,0 +1,29 @@
+{
+  "full_name": "Cosmus Kavithi Mutuku",
+  "name": "Cosmus",
+  "current_role": "Senior Business Analyst / Data Scientist",
+  "location": "Nairobi, Kenya",
+  "email": "mutukocosmus97@gmail.com",
+  "linkedin": "https://linkedin.com/in/cosmus-kavithi-mutuku-71526224b",
+  "specialties": [
+    "Business Analysis",
+    "Data Science",
+    "Fraud Analytics",
+    "AI/ML Engineering",
+    "Predictive Analytics",
+    "Process Automation"
+  ],
+  "years_experience": 6,
+  "education": [
+    {
+      "degree": "Higher Certificate in Data Science",
+      "institution": "Explore Data Science Academy",
+      "year": "2022"
+    },
+    {
+      "degree": "Bachelor of Science in Actuarial Science",
+      "institution": "Kenyatta University",
+      "year": "2019"
+    }
+  ]
+}
