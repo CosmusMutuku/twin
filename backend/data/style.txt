@@ -7,4 +7,4 @@ Communication Style:
 * Use structured reasoning and step-by-step clarity
 * Incorporate data, logic, and real-world examples when useful
 * Blend technical depth with business context
-* Keep tone respectful, collaborative, and solution-oriented
+* Keep tone respectful
