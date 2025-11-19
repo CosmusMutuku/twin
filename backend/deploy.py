@@ -3,35 +3,35 @@ import shutil
 import zipfile
 import subprocess
 
-
 def main():
     print("Creating Lambda deployment package...")
 
-    # Clean up
-    if os.path.exists("lambda-package"):
-        shutil.rmtree("lambda-package")
-    if os.path.exists("lambda-deployment.zip"):
-        os.remove("lambda-deployment.zip")
+    PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))  # backend/
+    PACKAGE_DIR = os.path.join(PROJECT_ROOT, "lambda-package")
+    DEPLOY_ZIP = os.path.join(PROJECT_ROOT, "lambda-deployment.zip")
+    DATA_DIR = os.path.join(PROJECT_ROOT, "data")  # backend/data
 
-    # Create package directory
-    os.makedirs("lambda-package")
+    # Clean up
+    if os.path.exists(PACKAGE_DIR):
+        shutil.rmtree(PACKAGE_DIR)
+    if os.path.exists(DEPLOY_ZIP):
+        os.remove(DEPLOY_ZIP)
+
+    os.makedirs(PACKAGE_DIR)
 
     # Install dependencies using Docker with Lambda runtime image
     print("Installing dependencies for Lambda runtime...")
-
-    # Use the official AWS Lambda Python 3.12 image
-    # This ensures compatibility with Lambda's runtime environment
     subprocess.run(
         [
             "docker",
             "run",
             "--rm",
             "-v",
-            f"{os.getcwd()}:/var/task",
+            f"{PROJECT_ROOT}:/var/task",
             "--platform",
-            "linux/amd64",  # Force x86_64 architecture
+            "linux/amd64",
             "--entrypoint",
-            "",  # Override the default entrypoint
+            "",
             "public.ecr.aws/lambda/python:3.12",
             "/bin/sh",
             "-c",
@@ -43,26 +43,26 @@ def main():
     # Copy application files
     print("Copying application files...")
     for file in ["server.py", "lambda_handler.py", "context.py", "resources.py"]:
-        if os.path.exists(file):
-            shutil.copy2(file, "lambda-package/")
-    
-    # Copy data directory
-    if os.path.exists("data"):
-        shutil.copytree("data", "lambda-package/data")
+        src_file = os.path.join(PROJECT_ROOT, file)
+        if os.path.exists(src_file):
+            shutil.copy2(src_file, PACKAGE_DIR)
+
+    # Copy data folder
+    if os.path.exists(DATA_DIR):
+        shutil.copytree(DATA_DIR, os.path.join(PACKAGE_DIR, "data"))
 
     # Create zip
     print("Creating zip file...")
-    with zipfile.ZipFile("lambda-deployment.zip", "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk("lambda-package"):
+    with zipfile.ZipFile(DEPLOY_ZIP, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(PACKAGE_DIR):
             for file in files:
                 file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, "lambda-package")
+                arcname = os.path.relpath(file_path, PACKAGE_DIR)
                 zipf.write(file_path, arcname)
 
     # Show package size
-    size_mb = os.path.getsize("lambda-deployment.zip") / (1024 * 1024)
+    size_mb = os.path.getsize(DEPLOY_ZIP) / (1024 * 1024)
     print(f"✓ Created lambda-deployment.zip ({size_mb:.2f} MB)")
-
 
 if __name__ == "__main__":
     main()
