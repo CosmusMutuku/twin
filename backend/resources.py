@@ -1,32 +1,19 @@
-from pypdf import PdfReader
 import json
-import os
+from pathlib import Path
 
-# Base directory: directory where this file lives
-BASE_DIR = os.path.dirname(__file__)
-DATA_DIR = os.path.join(BASE_DIR, "data")
+base_path = Path(__file__).parent / "data"
 
-# Read LinkedIn PDF
-linkedin_path = os.path.join(DATA_DIR, "linkedin.pdf")
-linkedin = ""
-try:
-    reader = PdfReader(linkedin_path)
-    for page in reader.pages:
-        text = page.extract_text()
-        if text:
-            linkedin += text
-except FileNotFoundError:
-    linkedin = "LinkedIn profile not available"
+def load_json(name):
+    path = base_path / name
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
 
-# Read other data files
-summary_path = os.path.join(DATA_DIR, "summary.txt")
-with open(summary_path, "r", encoding="utf-8") as f:
-    summary = f.read()
-
-style_path = os.path.join(DATA_DIR, "style.txt")
-with open(style_path, "r", encoding="utf-8") as f:
-    style = f.read()
-
-facts_path = os.path.join(DATA_DIR, "facts.json")
-with open(facts_path, "r", encoding="utf-8") as f:
-    facts = json.load(f)
+linkedin = load_json("linkedin.json")
+summary = load_json("summary.json")
+facts = load_json("facts.json")
+style = load_json("style.json")
