@@ -15,6 +15,7 @@ Set-Location ..
 
 # 2. Terraform workspace & apply
 Set-Location terraform
+# New lines:
 $awsAccountId = aws sts get-caller-identity --query Account --output text
 $awsRegion = if ($env:DEFAULT_AWS_REGION) { $env:DEFAULT_AWS_REGION } else { "eu-west-1" }
 terraform init -input=false `

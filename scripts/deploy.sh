@@ -6,35 +6,16 @@ PROJECT_NAME=${2:-twin}
 
 echo "🚀 Deploying ${PROJECT_NAME} to ${ENVIRONMENT}..."
 
-# 0. Ensure backend build directory is clean
-cd "$(dirname "$0")/.."
-echo "🧹 Cleaning old Lambda builds..."
-rm -rf backend/lambda-package
-rm -f backend/lambda-deployment.zip
-
-# 0a. Ensure Docker is running (GitHub Actions explicit fix)
-echo "🐳 Ensuring Docker is available..."
-sudo systemctl start docker || true
-docker info || { echo "❌ Docker is not available. Aborting."; exit 1; }
-
 # 1. Build Lambda package
+cd "$(dirname "$0")/.."        # project root
 echo "📦 Building Lambda package..."
 (cd backend && uv run deploy.py)
 
-# 1a. Verify ZIP contents
-echo "📄 Lambda ZIP contents:"
-# Use unzip if available (Linux/WSL), fallback to PowerShell on Windows runners
-if command -v unzip &> /dev/null; then
-    unzip -l backend/lambda-deployment.zip
-else
-    powershell -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::OpenRead('backend/lambda-deployment.zip').Entries | ForEach-Object { $_.FullName }"
-fi
-
 # 2. Terraform workspace & apply
 cd terraform
+# New lines:
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 AWS_REGION=${DEFAULT_AWS_REGION:-eu-west-1}
-
 terraform init -input=false \
   -backend-config="bucket=twin-terraform-state-${AWS_ACCOUNT_ID}" \
   -backend-config="key=${ENVIRONMENT}/terraform.tfstate" \
@@ -48,6 +29,7 @@ else
   terraform workspace select "$ENVIRONMENT"
 fi
 
+# Use prod.tfvars for production environment
 if [ "$ENVIRONMENT" = "prod" ]; then
   TF_APPLY_CMD=(terraform apply -var-file=prod.tfvars -var="project_name=$PROJECT_NAME" -var="environment=$ENVIRONMENT" -auto-approve)
 else
@@ -63,6 +45,8 @@ CUSTOM_URL=$(terraform output -raw custom_domain_url 2>/dev/null || true)
 
 # 3. Build + deploy frontend
 cd ../frontend
+
+# Create production environment file with API URL
 echo "📝 Setting API URL for production..."
 echo "NEXT_PUBLIC_API_URL=$API_URL" > .env.production
 
