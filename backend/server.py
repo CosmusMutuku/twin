@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 import boto3
 from botocore.exceptions import ClientError
-from .context import prompt
+from context import prompt
 
 
 # Load environment variables
