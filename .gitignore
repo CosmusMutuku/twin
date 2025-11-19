@@ -8,6 +8,7 @@ terraform.tfstate.d/
 
 # Lambda packages
 lambda-deployment.zip
+
 lambda-package/
 
 # Memory storage (contains conversation history)
