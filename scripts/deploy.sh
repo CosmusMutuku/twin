@@ -1,10 +1,6 @@
 #!/bin/bash
-
 set -e
 set -o pipefail
-
-# Go to backend folder (where requirements.txt and source files live)
-cd "$(dirname "$0")/../backend"
 
 PACKAGE_DIR="lambda-package"
 ZIP_FILE="lambda-package.zip"
@@ -13,7 +9,7 @@ echo "===> Cleaning package directory"
 rm -rf "$PACKAGE_DIR" "$ZIP_FILE"
 mkdir -p "$PACKAGE_DIR"
 
-echo "===> Installing dependencies"
+echo "===> Installing Python dependencies"
 pip install --upgrade pip > /dev/null
 pip install -r requirements.txt --target "$PACKAGE_DIR" > /dev/null
 
@@ -35,8 +31,4 @@ cd "$PACKAGE_DIR"
 zip -r "../$ZIP_FILE" . > /dev/null
 cd ..
 
-echo "===> Deploying via Terraform"
-cd ../terraform
-terraform apply -auto-approve
-
-echo "===> Deployment complete!"
+echo "===> Package created: $ZIP_FILE"
