@@ -1,6 +1,3 @@
-# 
-
-
 #!/bin/bash
 set -e
 
@@ -14,6 +11,11 @@ cd "$(dirname "$0")/.."
 echo "🧹 Cleaning old Lambda builds..."
 rm -rf backend/lambda-package
 rm -f backend/lambda-deployment.zip
+
+# 0a. Ensure Docker is running (GitHub Actions explicit fix)
+echo "🐳 Ensuring Docker is available..."
+sudo systemctl start docker || true
+docker info || { echo "❌ Docker is not available. Aborting."; exit 1; }
 
 # 1. Build Lambda package
 echo "📦 Building Lambda package..."
