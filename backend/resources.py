@@ -1,19 +1,19 @@
+import os
 import json
-from pathlib import Path
 
-base_path = Path(__file__).parent / "data"
+# Use __file__ to get path relative to current file
+BASE_DIR = os.path.dirname(__file__)
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
-def load_json(name):
-    path = base_path / name
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
-        return {}
+# Load facts
+facts_path = os.path.join(DATA_DIR, "facts.json")
+try:
+    with open(facts_path, "r", encoding="utf-8") as f:
+        facts = json.load(f)
+except FileNotFoundError:
+    raise RuntimeError(f"Facts file not found at {facts_path}")
 
-linkedin = load_json("linkedin.json")
-summary = load_json("summary.json")
-facts = load_json("facts.json")
-style = load_json("style.json")
+# Example placeholders for other modules
+linkedin = {}
+summary = {}
+style = {}

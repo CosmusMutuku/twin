@@ -3,6 +3,9 @@
 set -e
 set -o pipefail
 
+# Go to backend folder (where requirements.txt and source files live)
+cd "$(dirname "$0")/../backend"
+
 PACKAGE_DIR="lambda-package"
 ZIP_FILE="lambda-package.zip"
 
@@ -25,7 +28,6 @@ if [ ! -d "data" ]; then
     echo "❌ ERROR: data/ folder not found!"
     exit 1
 fi
-
 cp -r data "$PACKAGE_DIR/data"
 
 echo "===> Creating ZIP package"
@@ -34,6 +36,7 @@ zip -r "../$ZIP_FILE" . > /dev/null
 cd ..
 
 echo "===> Deploying via Terraform"
+cd ../terraform
 terraform apply -auto-approve
 
 echo "===> Deployment complete!"

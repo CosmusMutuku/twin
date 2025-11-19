@@ -1,68 +1,43 @@
 import os
 import shutil
-import zipfile
 import subprocess
+from pathlib import Path
 
-def main():
-    print("Creating Lambda deployment package...")
+BASE_DIR = Path(__file__).parent.resolve()
+BACKEND_DIR = BASE_DIR / "backend"
+PACKAGE_DIR = BACKEND_DIR / "lambda-package"
+ZIP_FILE = BACKEND_DIR / "lambda-package.zip"
 
-    PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))  # backend/
-    PACKAGE_DIR = os.path.join(PROJECT_ROOT, "lambda-package")
-    DEPLOY_ZIP = os.path.join(PROJECT_ROOT, "lambda-deployment.zip")
-    DATA_DIR = os.path.join(PROJECT_ROOT, "data")  # backend/data
+# Clean package directory
+shutil.rmtree(PACKAGE_DIR, ignore_errors=True)
+if ZIP_FILE.exists():
+    ZIP_FILE.unlink()
+PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Clean up
-    if os.path.exists(PACKAGE_DIR):
-        shutil.rmtree(PACKAGE_DIR)
-    if os.path.exists(DEPLOY_ZIP):
-        os.remove(DEPLOY_ZIP)
+# Install dependencies
+subprocess.run(
+    ["pip", "install", "--upgrade", "pip"],
+    check=True
+)
+subprocess.run(
+    ["pip", "install", "-r", str(BACKEND_DIR / "requirements.txt"), "--target", str(PACKAGE_DIR)],
+    check=True
+)
 
-    os.makedirs(PACKAGE_DIR)
+# Copy source files
+for f in ["server.py", "lambda_handler.py", "context.py", "resources.py"]:
+    shutil.copy(BACKEND_DIR / f, PACKAGE_DIR / f)
 
-    # Install dependencies using Docker with Lambda runtime image
-    print("Installing dependencies for Lambda runtime...")
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            f"{PROJECT_ROOT}:/var/task",
-            "--platform",
-            "linux/amd64",
-            "--entrypoint",
-            "",
-            "public.ecr.aws/lambda/python:3.12",
-            "/bin/sh",
-            "-c",
-            "pip install --target /var/task/lambda-package -r /var/task/requirements.txt --platform manylinux2014_x86_64 --only-binary=:all: --upgrade",
-        ],
-        check=True,
-    )
+# Copy data folder
+data_dir = BACKEND_DIR / "data"
+if not data_dir.exists():
+    raise FileNotFoundError("data/ folder not found")
+shutil.copytree(data_dir, PACKAGE_DIR / "data")
 
-    # Copy application files
-    print("Copying application files...")
-    for file in ["server.py", "lambda_handler.py", "context.py", "resources.py"]:
-        src_file = os.path.join(PROJECT_ROOT, file)
-        if os.path.exists(src_file):
-            shutil.copy2(src_file, PACKAGE_DIR)
+# Create ZIP
+subprocess.run(["zip", "-r", str(ZIP_FILE), "."], cwd=PACKAGE_DIR, check=True)
 
-    # Copy data folder
-    if os.path.exists(DATA_DIR):
-        shutil.copytree(DATA_DIR, os.path.join(PACKAGE_DIR, "data"))
+# Deploy via Terraform
+subprocess.run(["terraform", "apply", "-auto-approve"], cwd=BASE_DIR / "terraform", check=True)
 
-    # Create zip
-    print("Creating zip file...")
-    with zipfile.ZipFile(DEPLOY_ZIP, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(PACKAGE_DIR):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, PACKAGE_DIR)
-                zipf.write(file_path, arcname)
-
-    # Show package size
-    size_mb = os.path.getsize(DEPLOY_ZIP) / (1024 * 1024)
-    print(f"✓ Created lambda-deployment.zip ({size_mb:.2f} MB)")
-
-if __name__ == "__main__":
-    main()
+print("✅ Deployment complete!")
