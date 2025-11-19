@@ -18,7 +18,7 @@ Set-Location (Join-Path (Split-Path $PSScriptRoot -Parent) "terraform")
 
 # Get AWS Account ID for backend configuration
 $awsAccountId = aws sts get-caller-identity --query Account --output text
-$awsRegion = if ($env:DEFAULT_AWS_REGION) { $env:DEFAULT_AWS_REGION } else { "eu-north-1" }
+$awsRegion = if ($env:DEFAULT_AWS_REGION) { $env:DEFAULT_AWS_REGION } else { "eu-west-1" }
 
 # Initialize terraform with S3 backend
 Write-Host "Initializing Terraform with S3 backend..." -ForegroundColor Yellow

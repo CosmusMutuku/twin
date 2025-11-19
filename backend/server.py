@@ -30,7 +30,7 @@ app.add_middleware(
 # Initialize Bedrock client
 bedrock_client = boto3.client(
     service_name="bedrock-runtime", 
-    region_name=os.getenv("DEFAULT_AWS_REGION", "eu-north-1")
+    region_name=os.getenv("DEFAULT_AWS_REGION", "eu-west-1")
 )
 
 # Bedrock model selection
@@ -39,7 +39,7 @@ bedrock_client = boto3.client(
 # - amazon.nova-lite-v1:0   (balanced - default)
 # - amazon.nova-pro-v1:0    (most capable, higher cost)
 # Remember the Heads up: you might need to add us. or eu. prefix to the below model id
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "eu.amazon.nova-micro-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "arn:aws:bedrock:eu-west-1:937927368040:inference-profile/eu.amazon.nova-micro-v1:0")
 
 # Memory storage configuration
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
