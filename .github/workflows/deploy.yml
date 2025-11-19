@@ -21,9 +21,10 @@ permissions:
 
 jobs:
   deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'dev' }}
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,29 +44,22 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_wrapper: false
+          terraform_version: '1.7.7'
 
-      - name: Run Deployment Script (Package Lambda)
+      - name: Run Deployment Script
         run: |
-          export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}
-          export DEFAULT_AWS_REGION=${{ secrets.DEFAULT_AWS_REGION }}
-
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh ${{ github.event.inputs.environment || 'dev' }}
         env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          DEFAULT_AWS_REGION: ${{ secrets.DEFAULT_AWS_REGION }}
           AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
 
-      - name: Terraform Apply
-        working-directory: ./terraform
-        run: |
-          terraform init
-          terraform workspace select ${{ github.event.inputs.environment || 'dev' }} || terraform workspace new ${{ github.event.inputs.environment || 'dev' }}
-          terraform apply -auto-approve
-
-      - name: Get Deployment Outputs
+      - name: Get Deployment URLs
         id: deploy_outputs
         working-directory: ./terraform
         run: |
+          terraform workspace select ${{ github.event.inputs.environment || 'dev' }}
           echo "api_url=$(terraform output -raw api_gateway_url)" >> $GITHUB_OUTPUT
           echo "frontend_bucket=$(terraform output -raw s3_frontend_bucket)" >> $GITHUB_OUTPUT
           echo "frontend_url=$(terraform output -raw frontend_url)" >> $GITHUB_OUTPUT

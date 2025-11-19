@@ -1,6 +1,7 @@
 import os
 import json
 
+# Base directory for relative paths
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
@@ -12,7 +13,7 @@ try:
 except FileNotFoundError:
     raise RuntimeError(f"Facts file not found at {facts_path}")
 
-# Placeholder modules
+# Example placeholders for other modules
 linkedin = {}
 summary = {}
 style = {}

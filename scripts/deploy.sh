@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -e
 set -o pipefail
 
@@ -11,7 +12,7 @@ mkdir -p "$PACKAGE_DIR"
 
 echo "===> Installing Python dependencies"
 pip install --upgrade pip > /dev/null
-pip install -r requirements.txt --target "$PACKAGE_DIR" > /dev/null
+pip install -r backend/requirements.txt --target "$PACKAGE_DIR" > /dev/null
 
 echo "===> Copying source files"
 cp server.py "$PACKAGE_DIR"
@@ -31,4 +32,8 @@ cd "$PACKAGE_DIR"
 zip -r "../$ZIP_FILE" . > /dev/null
 cd ..
 
-echo "===> Package created: $ZIP_FILE"
+echo "===> Deploying via Terraform"
+terraform init
+terraform apply -auto-approve
+
+echo "===> Deployment complete!"
