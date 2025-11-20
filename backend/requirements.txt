@@ -2,6 +2,6 @@ fastapi
 uvicorn
 python-dotenv
 python-multipart
-boto3>=1.34.69
+boto3
 pypdf
 mangum
