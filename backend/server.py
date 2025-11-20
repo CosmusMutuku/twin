@@ -266,7 +266,7 @@ app.add_middleware(
 
 # Initialize Bedrock client
 bedrock_client = boto3.client(
-    service_name="bedrock-runtime",
+    service_name="bedrock",
     region_name=os.getenv("DEFAULT_AWS_REGION", "eu-west-1")
 )
 
@@ -276,7 +276,7 @@ bedrock_client = boto3.client(
 # - Inference Profile ARNs (recommended)
 BEDROCK_MODEL_ID = os.getenv(
     "BEDROCK_MODEL_ID",
-    "arn:aws:bedrock:eu-west-1:937927368040:inference-profile/eu.amazon.nova-micro-v1:0"
+    "eu.amazon.nova-micro-v1:0"
 )
 
 # Memory storage config
